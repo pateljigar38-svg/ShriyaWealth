@@ -1,0 +1,60 @@
+body {
+  font-family: Arial, sans-serif;
+  max-width: 600px;
+  margin: 2em auto;
+  background: #f8f9fa;
+  padding: 2em;
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+h1 {
+  color: #2b464c;
+  margin-bottom: 1em;
+}
+form label {
+  display: block;
+  margin-bottom: 0.5em;
+  color: #333;
+}
+input, select, button {
+  margin-top: 0.2em;
+  margin-bottom: 1em;
+  padding: 0.5em;
+  border-radius: 5px;
+  border: 1px solid #bbb;
+  font-size: 1em;
+  width: 100%;
+  max-width: 300px;
+}
+button {
+  background: #02577a;
+  color: white;
+  border: none;
+  cursor: pointer;
+  font-weight: bold;
+  width: auto;
+  margin-top: 1em;
+}
+button:hover {
+  background: #013d54;
+}
+#advisorResults {
+  margin-top: 2em;
+}
+.xirr {
+  color: #02577a;
+  font-weight: bold;
+}
+.explanation {
+  color: #444;
+  font-size: 0.98em;
+}
+.no-results {
+  color: #c00;
+  font-weight: bold;
+}
+.disclaimer {
+  color: #666;
+  margin-top: 1.5em;
+  font-size: 0.9em;
+}

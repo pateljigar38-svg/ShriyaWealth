@@ -1,80 +1,69 @@
-from fastapi import FastAPI
-from pydantic import BaseModel
-from typing import List, Optional
+You are an expert mutual fund analyst with 35+ years of experience and a proven record of consistently generating 20%+ XIRR while ensuring no fund underperforms its category return.
 
-app = FastAPI()
+Build a mutual fund selection and backtesting model with the following rules:
 
-# Sample fund data (add more as needed)
-FUNDS = [
-    {"name": "Large Cap Alpha Fund", "type": "Large Cap", "xirr": 19, "bear": 14, "bull": 21, "style": "Growth", "risk": "Conservative", "min_years": 5},
-    {"name": "Flexi Cap Pro Fund", "type": "Flexi Cap", "xirr": 21, "bear": 15, "bull": 23, "style": "Blend", "risk": "Moderate", "min_years": 7},
-    {"name": "Mid Cap Growth Fund", "type": "Mid Cap", "xirr": 22, "bear": 13, "bull": 24, "style": "Aggressive", "risk": "Aggressive", "min_years": 10},
-    {"name": "Hybrid Secure Fund", "type": "Hybrid", "xirr": 16, "bear": 13, "bull": 18, "style": "Balanced", "risk": "Conservative", "min_years": 3},
-    {"name": "Global Equity Fund", "type": "International", "xirr": 18, "bear": 13, "bull": 20, "style": "Diversifier", "risk": "Moderate", "min_years": 5},
-    # Add more funds as required
-]
+🔹 Backtesting & Accuracy
 
-class RecommendRequest(BaseModel):
-    goal: str
-    tenor: int
-    amount: int
-    approach: str
-    risk: str
+Use historical AMFI NAV data for backtesting.
 
-class FundRecommendation(BaseModel):
-    name: str
-    type: str
-    xirr: float
-    bear: float
-    bull: float
-    style: str
-    explanation: str
+Any recommendation must achieve ≥95% accuracy when validated against actual returns over subsequent periods.
 
-class RecommendResponse(BaseModel):
-    recommendations: List[FundRecommendation]
+Example: If JM Flexicap was suggested in 2022 for 20%+ XIRR, validation in 2025 should show ≥95% alignment.
 
-def veteran_explanation(fund, risk):
-    return (
-        f"Selected {fund['name']} as a {fund['type']} fund with veteran XIRR of {fund['xirr']}% "
-        f"(bear market: {fund['bear']}%, bull market: {fund['bull']}%). "
-        f"Suitable for a {risk} investor due to its {fund['style'].lower()} style and proven performance."
-    )
 
-def select_funds(goal, tenor, amount, approach, risk):
-    # Determine fund limit
-    fund_limit = 3
-    if approach.lower().startswith("sip") and 5000 < amount <= 10000:
-        fund_limit = 5
-    elif approach.lower().startswith("sip") and amount > 10000:
-        fund_limit = 7
+🔹 Return Guardrails
 
-    # Filter funds matching the veteran criteria
-    shortlist = [
-        f for f in FUNDS
-        if f["min_years"] <= tenor
-        and f["xirr"] >= 18 and f["bear"] >= 13 and f["bull"] >= 20
-        and (
-            (risk == "Conservative" and (f["type"] in ["Hybrid", "Large Cap"])) or
-            (risk == "Moderate" and f["type"] in ["Large Cap", "Flexi Cap", "Hybrid", "International"]) or
-            (risk == "Aggressive")
-        )
-    ]
-    seen_types = set()
-    selected = []
-    for fund in shortlist:
-        if fund["type"] not in seen_types:
-            fund_copy = fund.copy()
-            fund_copy["explanation"] = veteran_explanation(fund, risk)
-            selected.append(fund_copy)
-            seen_types.add(fund["type"])
-        if len(selected) == fund_limit:
-            break
-    return selected
+In bear markets, minimum XIRR ≥ 13%.
 
-@app.post("/recommend", response_model=RecommendResponse)
-async def recommend(request: RecommendRequest):
-    funds = select_funds(
-        request.goal, request.tenor, request.amount,
-        request.approach, request.risk
-    )
-    return {"recommendations": funds}
+In bull markets, minimum XIRR ≥ 18%.
+
+At no point should a recommended fund underperform its category average.
+
+
+🔹 Ranking & Selection
+
+Recommend only funds in the Top 5 performers across 5Y, 3Y, 1Y, 6M, and 3M returns.
+
+Categories covered: Large Cap, Mid Cap, Small Cap, Flexicap, Thematic, Hybrid, International.
+
+Allocation Rules:
+
+Avoid over-diversification (max 7 funds per portfolio).
+
+Avoid over-concentration (no single fund >30% allocation).
+
+Conservative clients → max 3 funds.
+
+Aggressive clients → up to 7 funds with balanced exposure.
+
+
+
+🔹 Outputs Required
+
+1. Recommended funds with rank, returns, and comparison vs. category.
+
+
+2. Historical backtest validation with accuracy %.
+
+
+3. SIP outcome simulator (₹1,000–₹1,00,000, adjustable tenor).
+
+
+4. Risk-adjusted metrics (Sharpe ratio, volatility, max drawdown).
+
+
+5. Projection tables for SIP & Lump Sum across 1Y, 3Y, 5Y, 10Y.
+
+
+6. Export options: Google Sheet + one-click PDF report.
+
+
+
+🔹 Default Settings
+
+Default plan: Regular – Growth Option.
+
+Allow toggle to Dividend Option if required by client.
+
+
+provide input python file and output file with all above logic

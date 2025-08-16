@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Mutual Fund Advisor</title>
+  <link rel="stylesheet" href="advisor.css">
+</head>
+<body>
+  <h1>Veteran Mutual Fund Advisor</h1>
+  <form id="advisorForm">
+    <label>Goal:
+      <input type="text" name="goal" required>
+    </label><br>
+    <label>Tenor (years):
+      <input type="number" name="tenor" min="1" required>
+    </label><br>
+    <label>Amount (₹):
+      <input type="number" name="amount" min="1" required>
+    </label><br>
+    <label>Approach:
+      <select name="approach" required>
+        <option value="SIP">SIP</option>
+        <option value="Lumpsum">Lumpsum</option>
+      </select>
+    </label><br>
+    <label>Risk Profile:
+      <select name="risk" required>
+        <option value="Conservative">Conservative</option>
+        <option value="Moderate">Moderate</option>
+        <option value="Aggressive">Aggressive</option>
+      </select>
+    </label><br>
+    <button type="submit">Get Recommendations</button>
+  </form>
+  <div id="advisorResults"></div>
+  <script src="advisor.js"></script>
+</body>
+</html>

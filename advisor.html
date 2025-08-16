@@ -11,7 +11,7 @@
   <style>
     body { font-family: 'Poppins', sans-serif; background: #f6fafc; }
     .brand-header { background: #0c2340; color: #ffd700; padding: 1.5rem 0; text-align: center; }
-    .brand-logo { height: 48px; margin-bottom: 8px; }
+    .brand-logo { height: 48px; margin-bottom: 8px; display:block; margin-left:auto; margin-right:auto;}
     .advisor-card { box-shadow: 0 2px 12px #0001; border-radius: 1rem; margin-bottom: 2rem; background: #fff; }
     .fund-card { box-shadow: 0 2px 6px #0001; border-radius: 0.75rem; margin-bottom: 1.5rem; background: #fff; }
     .fund-badge { font-size: 0.85em; }
@@ -78,7 +78,7 @@
       };
       document.getElementById('results').innerHTML = '<div class="text-center my-4">Loading recommendations...</div>';
       try {
-        // Change the endpoint below to your live backend endpoint!
+        // Change the endpoint below to your live backend endpoint if needed!
         const resp = await fetch('https://shriyawealth.onrender.com/recommend', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

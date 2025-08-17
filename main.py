@@ -11,10 +11,9 @@ import json
 import warnings
 warnings.filterwarnings('ignore')
 
-# =============================================================================
+# =================
 # CORE SYSTEM CLASSES
-# =============================================================================
-
+# =================
 class MutualFundSelector:
     """
     Expert Mutual Fund Selection System
@@ -60,7 +59,7 @@ class MutualFundSelector:
                     npv_value += cf / ((1 + rate) ** (days / 365.0))
                 return npv_value
             
-            xirr = fsolve(lambda r: npv(r, cashflows, dates), [guess])
+            xirr = fsolve(lambda r: npv(r[0], cashflows, dates), [guess])
             return xirr * 100
         except:
             return 0.0
@@ -149,9 +148,7 @@ class DataFetcher:
         """Get all scheme codes organized by category"""
         if self.mf:
             try:
-                # Use mftool to get actual scheme codes
                 all_schemes = self.mf.get_scheme_codes()
-                # Categorize schemes (simplified logic)
                 return self._categorize_schemes(all_schemes)
             except:
                 return self.scheme_codes
@@ -161,7 +158,6 @@ class DataFetcher:
         """Fetch historical NAV data"""
         if self.mf:
             try:
-                # Use mftool for real data
                 nav_data = self.mf.get_scheme_historical_nav_for_dates(
                     scheme_code, start_date.strftime('%d-%m-%Y'), end_date.strftime('%d-%m-%Y')
                 )
@@ -179,7 +175,6 @@ class DataFetcher:
         np.random.seed(int(scheme_code) % 1000)
         initial_nav = 10.0 + (int(scheme_code) % 100)
         
-        # Generate realistic returns based on fund category
         category_volatility = {
             'Large Cap': 0.012,
             'Mid Cap': 0.018,
@@ -189,7 +184,7 @@ class DataFetcher:
             'Hybrid': 0.008
         }
         
-        volatility = 0.015  # Default
+        volatility = 0.015
         for cat, vol in category_volatility.items():
             if any(scheme_code in schemes for schemes in self.scheme_codes.get(cat, {}).keys()):
                 volatility = vol
@@ -231,7 +226,6 @@ class BacktestEngine:
         return market_data
     
     def backtest_fund_selection(self, fund_data, start_date, end_date):
-        """Run comprehensive backtest with accuracy validation"""
         results = {}
         
         for category, schemes in fund_data.items():
@@ -250,23 +244,19 @@ class BacktestEngine:
                 returns = nav_data['nav'].pct_change().dropna()
                 nav_data = self.identify_market_phases(nav_data)
                 
-                # Calculate phase-wise performance
                 bear_periods = nav_data[nav_data['market_phase'] == 'bear']
                 bull_periods = nav_data[nav_data['market_phase'] == 'bull']
                 
                 bear_xirr = self._calculate_sip_xirr(bear_periods) if len(bear_periods) > 60 else 0
                 bull_xirr = self._calculate_sip_xirr(bull_periods) if len(bull_periods) > 60 else 0
                 
-                # Overall metrics
                 total_return = ((nav_data['nav'].iloc[-1] / nav_data['nav'].iloc[0]) - 1) * 100
                 annual_return = total_return / (len(nav_data) / 252)
                 
-                # Risk metrics
                 sharpe_ratio = self._calculate_sharpe_ratio(returns)
                 max_drawdown = self._calculate_max_drawdown(nav_data['nav'])
                 volatility = returns.std() * np.sqrt(252) * 100
                 
-                # Calculate multiple period returns
                 returns_data = self._calculate_period_returns(nav_data)
                 
                 category_results[scheme_code] = {
@@ -288,7 +278,6 @@ class BacktestEngine:
         return results
     
     def _calculate_period_returns(self, nav_data):
-        """Calculate returns for different periods"""
         nav_series = nav_data['nav']
         current_nav = nav_series.iloc[-1]
         
@@ -308,7 +297,6 @@ class BacktestEngine:
         return returns
     
     def _calculate_sip_xirr(self, nav_data, sip_amount=10000):
-        """Calculate XIRR for SIP investment"""
         if len(nav_data) < 12:
             return 0
         
@@ -334,33 +322,29 @@ class BacktestEngine:
                     npv_value += cf / ((1 + rate) ** (days / 365.0))
                 return npv_value
             
-            xirr = fsolve(lambda r: npv(r, cashflows, dates), [0.1])
+            xirr = fsolve(lambda r: npv(r[0], cashflows, dates), [0.1])
             return xirr * 100
         except:
             return 0
     
     def _calculate_sharpe_ratio(self, returns, risk_free_rate=0.03):
-        """Calculate Sharpe Ratio"""
         if len(returns) == 0 or returns.std() == 0:
             return 0
         excess_return = returns.mean() - risk_free_rate/252
         return (excess_return / returns.std()) * np.sqrt(252)
     
     def _calculate_max_drawdown(self, nav_series):
-        """Calculate Maximum Drawdown"""
         cumulative = nav_series / nav_series.iloc[0]
         rolling_max = cumulative.expanding().max()
         drawdown = (cumulative - rolling_max) / rolling_max
         return drawdown.min() * 100
     
     def _check_fund_criteria(self, bear_xirr, bull_xirr, annual_return):
-        """Check if fund meets expert criteria"""
         return {
             'bear_market_ok': bear_xirr >= 13.0,
             'bull_market_ok': bull_xirr >= 18.0,
             'overall_return_ok': annual_return >= 15.0
         }
-
 
 class PortfolioConstructor:
     """Expert portfolio construction with allocation rules"""
@@ -404,8 +388,6 @@ class PortfolioConstructor:
         }
     
     def construct_portfolio(self, risk_profile, top_funds_by_category, investment_amount=100000):
-        """Construct optimal portfolio with expert allocation"""
-        
         if risk_profile not in self.portfolio_templates:
             raise ValueError(f"Risk profile {risk_profile} not supported")
         
@@ -425,7 +407,6 @@ class PortfolioConstructor:
                 category_funds = top_funds_by_category[category]
                 
                 if len(category_funds) > 0:
-                    # Select best performing fund that meets criteria
                     eligible_funds = [
                         (code, data) for code, data in category_funds.items()
                         if data.get('meets_criteria', {}).get('overall_return_ok', False)
@@ -436,7 +417,6 @@ class PortfolioConstructor:
                                       key=lambda x: x[1].get('total_return', 0))
                         fund_code, fund_data = best_fund
                     else:
-                        # Fallback to best performing fund even if doesn't meet all criteria
                         best_fund = max(category_funds.items(),
                                       key=lambda x: x[1].get('total_return', 0))
                         fund_code, fund_data = best_fund
@@ -447,7 +427,6 @@ class PortfolioConstructor:
                         'performance': fund_data
                     }
                     
-                    # Calculate allocation ensuring no single fund > 30%
                     actual_allocation = min(target_pct, self.allocation_rules['max_single_fund_allocation'])
                     allocations[fund_code] = actual_allocation
                     fund_amounts[fund_code] = (actual_allocation / 100) * investment_amount
@@ -455,17 +434,13 @@ class PortfolioConstructor:
                     total_expected_return += (actual_allocation / 100) * fund_data.get('total_return', 0)
                     funds_selected += 1
         
-        # Normalize allocations to 100%
         total_allocated = sum(allocations.values())
         if total_allocated > 0:
             for fund_code in allocations:
                 allocations[fund_code] = (allocations[fund_code] / total_allocated) * 100
                 fund_amounts[fund_code] = (allocations[fund_code] / 100) * investment_amount
         
-        # Calculate portfolio metrics
         portfolio_metrics = self._calculate_portfolio_metrics(selected_funds, allocations)
-        
-        # Validate portfolio
         validation = self.validate_allocation_rules(selected_funds, allocations)
         
         portfolio = {
@@ -483,8 +458,6 @@ class PortfolioConstructor:
         return portfolio
     
     def _calculate_portfolio_metrics(self, selected_funds, allocations):
-        """Calculate portfolio-level risk metrics"""
-        
         total_return = 0
         total_volatility = 0
         weighted_sharpe = 0
@@ -507,28 +480,24 @@ class PortfolioConstructor:
         }
     
     def validate_allocation_rules(self, selected_funds, allocations):
-        """Validate against expert allocation rules"""
         validation_results = {
             'valid': True,
             'violations': [],
             'recommendations': []
         }
         
-        # Check maximum funds per portfolio
         if len(selected_funds) > self.allocation_rules['max_funds_per_portfolio']:
             validation_results['valid'] = False
             validation_results['violations'].append(
                 f"Portfolio has {len(selected_funds)} funds, exceeds max of {self.allocation_rules['max_funds_per_portfolio']}"
             )
         
-        # Check maximum single fund allocation
         max_allocation = max(allocations.values()) if allocations else 0
         if max_allocation > self.allocation_rules['max_single_fund_allocation']:
             validation_results['violations'].append(
                 f"Single fund allocation of {max_allocation:.1f}% exceeds max of {self.allocation_rules['max_single_fund_allocation']}%"
             )
         
-        # Check minimum funds for conservative profiles
         if len(selected_funds) < self.allocation_rules['min_funds_conservative']:
             validation_results['recommendations'].append(
                 f"Consider adding more funds for better diversification (minimum {self.allocation_rules['min_funds_conservative']} recommended)"
@@ -541,25 +510,20 @@ class SIPCalculator:
     
     def __init__(self):
         self.calculation_history = []
-        self.inflation_rate = 3.0  # Default inflation assumption
+        self.inflation_rate = 3.0
     
     def calculate_sip_projections(self, sip_amount, portfolio_xirr, tenure_years, step_up_rate=0):
-        """Calculate comprehensive SIP projections"""
-        
         monthly_rate = (1 + portfolio_xirr/100) ** (1/12) - 1
         total_months = int(tenure_years * 12)
         
-        # Handle step-up SIPs
         future_value = 0
         total_invested = 0
         monthly_sip = sip_amount
         
         for month in range(total_months):
-            # Apply step-up annually
             if month > 0 and month % 12 == 0 and step_up_rate > 0:
                 monthly_sip = monthly_sip * (1 + step_up_rate/100)
             
-            # Calculate FV of this SIP installment
             remaining_months = total_months - month
             installment_fv = monthly_sip * ((1 + monthly_rate) ** remaining_months)
             future_value += installment_fv
@@ -567,7 +531,6 @@ class SIPCalculator:
         
         total_gains = future_value - total_invested
         
-        # Calculate different scenarios
         scenarios = {
             'Pessimistic (XIRR -3%)': self._calculate_scenario_value(
                 sip_amount, max(portfolio_xirr-3, 8), tenure_years, step_up_rate
@@ -584,7 +547,6 @@ class SIPCalculator:
             )
         }
         
-        # Calculate real returns (inflation-adjusted)
         inflation_adjusted_value = future_value / ((1 + self.inflation_rate/100) ** tenure_years)
         
         return {
@@ -602,7 +564,6 @@ class SIPCalculator:
         }
     
     def _calculate_scenario_value(self, sip_amount, xirr, tenure_years, step_up_rate=0):
-        """Calculate FV for different XIRR scenarios"""
         monthly_rate = (1 + xirr/100) ** (1/12) - 1
         total_months = int(tenure_years * 12)
         
@@ -620,12 +581,9 @@ class SIPCalculator:
         return future_value
     
     def calculate_lumpsum_projections(self, lumpsum_amount, portfolio_xirr, tenure_years):
-        """Calculate lumpsum investment projections"""
-        
         future_value = lumpsum_amount * ((1 + portfolio_xirr/100) ** tenure_years)
         total_gains = future_value - lumpsum_amount
         
-        # Scenario-based projections
         scenarios = {
             'Pessimistic (XIRR -3%)': lumpsum_amount * ((1 + max(portfolio_xirr-3, 8)/100) ** tenure_years),
             'Conservative (XIRR -1.5%)': lumpsum_amount * ((1 + max(portfolio_xirr-1.5, 10)/100) ** tenure_years),
@@ -634,7 +592,6 @@ class SIPCalculator:
             'Best Case (XIRR +4%)': lumpsum_amount * ((1 + (portfolio_xirr+4)/100) ** tenure_years)
         }
         
-        # Inflation adjustment
         inflation_adjusted_value = future_value / ((1 + self.inflation_rate/100) ** tenure_years)
         
         return {
@@ -650,8 +607,7 @@ class SIPCalculator:
         }
 
 # ========== USAGE EXAMPLE ==========
-
-if __name__ == \"__main__\":
+if __name__ == "__main__":
     # Initialize components
     fetcher = DataFetcher()
     backtester = BacktestEngine(fetcher)
@@ -667,7 +623,6 @@ if __name__ == \"__main__\":
     # Extract top funds
     top_funds_by_category = {}
     for category, funds in results.items():
-        # Sort by total return and select top 3
         top = dict(sorted(funds.items(), key=lambda x: x[1]['total_return'], reverse=True)[:3])
         top_funds_by_category[category] = top
     
@@ -688,28 +643,28 @@ if __name__ == \"__main__\":
     )
     
     # Display results
-    print("\\nPORTFOLIO SUMMARY:")
-    print(f\"Risk Profile: {portfolio['risk_profile']}\")
-    print(f\"Total Funds: {portfolio['total_funds']}\")
-    print(f\"Valid Portfolio: {portfolio['validation']['valid']}\")
-    print(\"Fund Allocations:\")
+    print("\nPORTFOLIO SUMMARY:")
+    print(f"Risk Profile: {portfolio['risk_profile']}")
+    print(f"Total Funds: {portfolio['total_funds']}")
+    print(f"Valid Portfolio: {portfolio['validation']['valid']}")
+    print("Fund Allocations:")
     for fc, info in portfolio['selected_funds'].items():
-        print(f\"  - {info['name']} ({info['category']}): {portfolio['allocations'][fc]:.2f}% allocated, Investment: ₹{portfolio['fund_amounts'][fc]:,.0f}\")
+        print(f"  - {info['name']} ({info['category']}): {portfolio['allocations'][fc]:.2f}% allocated, Investment: ₹{portfolio['fund_amounts'][fc]:,.0f}")
     
-    print("\\nSIP PROJECTION SUMMARY:")
+    print("\nSIP PROJECTION SUMMARY:")
     for key, value in sip_projection.items():
         if isinstance(value, dict):
-            print(f\"- {key}:\")
+            print(f"- {key}:")
             for k, v in value.items():
                 if isinstance(v, float):
-                    print(f\"   • {k}: ₹{v:,.0f}\")
+                    print(f"   • {k}: ₹{v:,.0f}")
                 else:
-                    print(f\"   • {k}: {v}\")
+                    print(f"   • {k}: {v}")
         else:
             if isinstance(value, float):
-                print(f\"- {key}: {value:.2f}\")
+                print(f"- {key}: {value:.2f}")
             else:
-                print(f\"- {key}: {value}\")
+                print(f"- {key}: {value}")
     
     # Export portfolio allocation to CSV
     allocation_df = pd.DataFrame([
@@ -722,4 +677,4 @@ if __name__ == \"__main__\":
         } for fc, info in portfolio['selected_funds'].items()
     ])
     allocation_df.to_csv('portfolio_allocation.csv', index=False)
-    print("\\n✓ Exported portfolio allocation to portfolio_allocation.csv")
+    print("\n✓ Exported portfolio allocation to portfolio_allocation.csv")

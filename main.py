@@ -1,16 +1,41 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from typing import Optional
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
 import pandas as pd
 import numpy as np
+import json
 import warnings
 warnings.filterwarnings('ignore')
 
-# =================
-# CORE SYSTEM CLASSES
-# =================
+# === FILE-BASED DATAFETCHER ===
+
+class DataFetcher:
+    def __init__(self, json_path='data/amfi_all_data.json'):
+        try:
+            with open(json_path, 'r') as f:
+                self.all_data = json.load(f)
+        except Exception as e:
+            print(f"Error loading AMFI data file: {e}")
+            self.all_data = []
+        self.scheme_codes = {}
+        for fund in self.all_data:
+            self.scheme_codes[fund['scheme_code']] = fund['scheme_name']
+    def get_scheme_codes_by_category(self):
+        return {'All': self.scheme_codes}
+    def fetch_historical_nav(self, scheme_code, start_date, end_date):
+        for fund in self.all_data:
+            if fund['scheme_code'] == scheme_code:
+                df = pd.DataFrame(fund['nav_history'])
+                if df.empty:
+                    return pd.DataFrame(columns=['date', 'nav'])
+                df['date'] = pd.to_datetime(df['date'])
+                mask = (df['date'] >= pd.to_datetime(start_date)) & (df['date'] <= pd.to_datetime(end_date))
+                return df.loc[mask, ['date', 'nav']].reset_index(drop=True)
+        return pd.DataFrame(columns=['date', 'nav'])
+
+
+# === FUND ANALYSIS CLASSES ===
 
 class MutualFundSelector:
     def __init__(self):
@@ -44,14 +69,14 @@ class MutualFundSelector:
                     days = (date - base_date).days
                     npv_value += cf / ((1 + rate) ** (days / 365.0))
                 return npv_value
-            xirr = fsolve(lambda r: npv(r[0], cashflows, dates), [guess])
+            xirr = fsolve(lambda r: npv(r, cashflows, dates), [guess])
             return xirr * 100
         except:
             return 0.0
     def calculate_sharpe_ratio(self, returns, risk_free_rate=0.03):
         if len(returns) == 0 or returns.std() == 0:
             return 0.0
-        excess_return = returns.mean() - risk_free_rate / 252
+        excess_return = returns.mean() - risk_free_rate/252
         volatility = returns.std()
         return (excess_return / volatility) * np.sqrt(252)
     def calculate_max_drawdown(self, nav_series):
@@ -61,105 +86,6 @@ class MutualFundSelector:
         return drawdown.min() * 100
     def calculate_volatility(self, returns):
         return returns.std() * np.sqrt(252) * 100
-
-class DataFetcher:
-    def __init__(self):
-        try:
-            from mftool import Mftool
-            self.mf = Mftool()
-            self.scheme_codes = {}
-            print("DataFetcher initialized with mftool")
-        except ImportError:
-            print("Warning: mftool not installed. Using sample data.")
-            self.mf = None
-            self._initialize_sample_data()
-    def _initialize_sample_data(self):
-        self.scheme_codes = {
-            'Large Cap': {
-                '119551': 'HDFC Top 100 Fund-Growth',
-                '119598': 'ICICI Prudential Bluechip Fund-Growth',
-                '119836': 'SBI Large Cap Fund-Growth',
-                '120503': 'Axis Bluechip Fund-Growth',
-                '119278': 'Nippon India Large Cap Fund-Growth'
-            },
-            'Mid Cap': {
-                '119564': 'HDFC Mid-Cap Opportunities Fund-Growth',
-                '119591': 'ICICI Prudential MidCap Fund-Growth',
-                '119837': 'SBI Magnum MidCap Fund-Growth',
-                '120556': 'Axis Midcap Fund-Growth',
-                '119717': 'Kotak Emerging Equity Fund-Growth'
-            },
-            'Small Cap': {
-                '119555': 'HDFC Small Cap Fund-Growth',
-                '119597': 'ICICI Prudential SmallCap Fund-Growth',
-                '119871': 'SBI Small Cap Fund-Growth',
-                '120554': 'Axis Small Cap Fund-Growth',
-                '119368': 'Nippon India Small Cap Fund-Growth'
-            },
-            'Flexicap': {
-                '119559': 'HDFC Flexicap Fund-Growth',
-                '119588': 'ICICI Prudential Flexicap Fund-Growth',
-                '119863': 'SBI Flexicap Fund-Growth',
-                '120469': 'Parag Parikh Flexi Cap Fund-Growth',
-                '119770': 'Kotak Flexicap Fund-Growth'
-            },
-            'Thematic': {
-                '119667': 'HDFC Infrastructure Fund-Growth',
-                '119623': 'ICICI Prudential Technology Fund-Growth',
-                '119890': 'SBI Technology Fund-Growth',
-                '120523': 'Axis Healthcare Fund-Growth',
-                '119456': 'Nippon India Pharma Fund-Growth'
-            },
-            'Hybrid': {
-                '119580': 'HDFC Hybrid Equity Fund-Growth',
-                '119619': 'ICICI Prudential Equity & Debt Fund-Growth',
-                '119856': 'SBI Equity Hybrid Fund-Growth',
-                '120512': 'Axis Hybrid Fund-Growth',
-                '119330': 'Nippon India Hybrid Fund-Growth'
-            }
-        }
-    def get_scheme_codes_by_category(self):
-        if self.mf:
-            try:
-                all_schemes = self.mf.get_scheme_codes()
-                return self._categorize_schemes(all_schemes)
-            except:
-                return self.scheme_codes
-        return self.scheme_codes
-    def fetch_historical_nav(self, scheme_code, start_date, end_date):
-        if self.mf:
-            try:
-                nav_data = self.mf.get_scheme_historical_nav_for_dates(
-                    scheme_code, start_date.strftime('%d-%m-%Y'), end_date.strftime('%d-%m-%Y')
-                )
-                return self._process_nav_data(nav_data)
-            except:
-                return self._generate_sample_nav_data(scheme_code, start_date, end_date)
-        else:
-            return self._generate_sample_nav_data(scheme_code, start_date, end_date)
-    def _generate_sample_nav_data(self, scheme_code, start_date, end_date):
-        date_range = pd.date_range(start=start_date, end=end_date, freq='D')
-        date_range = date_range[date_range.weekday < 5]
-        np.random.seed(int(scheme_code) % 1000)
-        initial_nav = 10.0 + (int(scheme_code) % 100)
-        category_volatility = {
-            'Large Cap': 0.012,
-            'Mid Cap': 0.018,
-            'Small Cap': 0.025,
-            'Flexicap': 0.015,
-            'Thematic': 0.022,
-            'Hybrid': 0.008
-        }
-        volatility = 0.015
-        for cat, vol in category_volatility.items():
-            if any(scheme_code in schemes for schemes in self.scheme_codes.get(cat, {}).keys()):
-                volatility = vol
-                break
-        returns = np.random.normal(0.0008, volatility, len(date_range))
-        nav_values = [initial_nav]
-        for ret in returns[1:]:
-            nav_values.append(nav_values[-1] * (1 + ret))
-        return pd.DataFrame({'date': date_range, 'nav': nav_values[:len(date_range)]})
 
 class BacktestEngine:
     def __init__(self, data_fetcher):
@@ -247,7 +173,7 @@ class BacktestEngine:
                     days = (date - base_date).days
                     npv_value += cf / ((1 + rate) ** (days / 365.0))
                 return npv_value
-            xirr = fsolve(lambda r: npv(r[0], cashflows, dates), [0.1])
+            xirr = fsolve(lambda r: npv(r, cashflows, dates), [0.1])
             return xirr * 100
         except:
             return 0
@@ -282,7 +208,7 @@ class PortfolioConstructor:
                 }
             },
             'Moderate': {
-                'risk_level': 'Medium', 
+                'risk_level': 'Medium',
                 'max_funds': 5,
                 'allocation': {
                     'Large Cap': 35,
@@ -326,7 +252,7 @@ class PortfolioConstructor:
                         if data.get('meets_criteria', {}).get('overall_return_ok', False)
                     ]
                     if eligible_funds:
-                        best_fund = max(eligible_funds, 
+                        best_fund = max(eligible_funds,
                                       key=lambda x: x[1].get('total_return', 0))
                         fund_code, fund_data = best_fund
                     else:
@@ -484,9 +410,7 @@ class SIPCalculator:
             'real_gains': inflation_adjusted_value - lumpsum_amount
         }
 
-# =================
-# FASTAPI APP
-# =================
+# === FASTAPI APP SETUP ===
 
 app = FastAPI(title="Mutual Fund Analysis API")
 
@@ -507,7 +431,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-fetcher = DataFetcher()
+fetcher = DataFetcher(json_path='data/amfi_all_data.json')
 backtester = BacktestEngine(fetcher)
 constructor = PortfolioConstructor({
     'max_funds_per_portfolio': 7,
@@ -528,46 +452,39 @@ async def recommend(req: RecommendationRequest):
         start_date = "2018-01-01"
         end_date = datetime.today().strftime("%Y-%m-%d")
         results = backtester.backtest_fund_selection(scheme_codes, start_date, end_date)
-
         top_funds_by_category = {}
         for category, funds in results.items():
-            filtered = {k: v for k, v in funds.items() if v['meets_criteria']['overall_return_ok']}
+            filtered = {k: v for k, v in funds.items() if v.get('meets_criteria', {}).get('overall_return_ok', False)}
             if filtered:
                 top = dict(sorted(filtered.items(), key=lambda x: x[1]['total_return'], reverse=True)[:3])
             else:
                 top = dict(sorted(funds.items(), key=lambda x: x[1]['total_return'], reverse=True)[:3])
             top_funds_by_category[category] = top
-
         portfolio = constructor.construct_portfolio('Moderate', top_funds_by_category, investment_amount=req.amount)
-
         recommendations = []
-        for fund_code, fund_info in portfolio['selected_funds'].items():
-            perf = fund_info['performance']
+        for fund_code, fund_info in portfolio.get('selected_funds', {}).items():
+            perf = fund_info.get('performance', {})
             recommendations.append({
-                "name": fund_info['name'],
-                "type": fund_info['category'],
+                "name": fund_info.get('name', ''),
+                "type": fund_info.get('category', ''),
                 "xirr": round(perf.get('total_return', 0), 2),
                 "bear": round(perf.get('bear_xirr', 0), 2),
                 "bull": round(perf.get('bull_xirr', 0), 2),
                 "explanation": "Recommended based on risk profile and past performance"
             })
-
-        # ULTIMATE FALLBACK: If portfolio is empty, return global top-3 funds by xirr
         if not recommendations:
             all_funds = []
             for cat in results.values():
                 for code, info in cat.items():
-                    perf = info
                     all_funds.append({
-                        "name": info['scheme_name'],
+                        "name": info.get('scheme_name', ''),
                         "type": info.get('category', 'N/A'),
-                        "xirr": round(perf.get('total_return', 0), 2),
-                        "bear": round(perf.get('bear_xirr', 0), 2),
-                        "bull": round(perf.get('bull_xirr', 0), 2),
+                        "xirr": round(info.get('total_return', 0), 2),
+                        "bear": round(info.get('bear_xirr', 0), 2),
+                        "bull": round(info.get('bull_xirr', 0), 2),
                         "explanation": "Best available by past returns"
                     })
             recommendations = sorted(all_funds, key=lambda x: x['xirr'], reverse=True)[:3]
-
         return {"recommendations": recommendations}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Recommendation failed: {str(e)}")

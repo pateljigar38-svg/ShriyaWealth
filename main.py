@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import Optional
+from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
 import pandas as pd
 import numpy as np
@@ -12,13 +13,6 @@ warnings.filterwarnings('ignore')
 # =================
 
 class MutualFundSelector:
-    """
-    Expert Mutual Fund Selection System
-    - 95%+ backtesting accuracy
-    - Bear market min XIRR ≥13%
-    - Bull market min XIRR ≥18%
-    """
-    
     def __init__(self):
         self.categories = {
             'Large Cap': [],
@@ -556,14 +550,25 @@ class SIPCalculator:
 
 app = FastAPI(title="Mutual Fund Analysis API")
 
-class AnalysisRequest(BaseModel):
-    start_date: Optional[str] = "2022-01-01"
-    end_date: Optional[str] = datetime.today().strftime("%Y-%m-%d")
-    risk_profile: Optional[str] = "Moderate"
-    investment_amount: Optional[float] = 500000
-    sip_amount: Optional[float] = 15000
-    sip_tenure_years: Optional[int] = 10
-    sip_step_up_rate: Optional[float] = 5.0
+from pydantic import BaseModel
+from typing import Optional
+
+class RecommendationRequest(BaseModel):
+    amount: int      # Investment amount
+    tenor: int       # Investment duration in years (or as your input expects)
+
+origins = [
+    "https://pateljigar38-svg.github.io",
+    "https://pateljigar38-svg.github.io/ShriyaWealth",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 fetcher = DataFetcher()
 backtester = BacktestEngine(fetcher)
@@ -579,46 +584,35 @@ sip_calc = SIPCalculator()
 async def root():
     return {"message": "Mutual Fund Analysis API is running"}
 
-@app.post("/run-analysis")
-async def run_analysis(req: AnalysisRequest):
+@app.post("/recommend")
+async def recommend(req: RecommendationRequest):
     try:
         scheme_codes = fetcher.get_scheme_codes_by_category()
-        results = backtester.backtest_fund_selection(scheme_codes, req.start_date, req.end_date)
+        start_date = "2018-01-01"
+        end_date = datetime.today().strftime("%Y-%m-%d")
+        results = backtester.backtest_fund_selection(scheme_codes, start_date, end_date)
 
         top_funds_by_category = {}
         for category, funds in results.items():
-            top = dict(sorted(funds.items(), key=lambda x: x[1]['total_return'], reverse=True)[:3])
+            filtered = {k: v for k, v in funds.items() if v['meets_criteria']['overall_return_ok']}
+            top = dict(sorted(filtered.items(), key=lambda x: x[1]['total_return'], reverse=True)[:3])
             top_funds_by_category[category] = top
 
-        portfolio = constructor.construct_portfolio(req.risk_profile, top_funds_by_category, req.investment_amount)
+        # For example, use 'Moderate' portfolio always as in your JS expects moderate risk
+        portfolio = constructor.construct_portfolio('Moderate', top_funds_by_category, investment_amount=req.amount)
 
-        portfolio_xirr = portfolio['portfolio_metrics']['expected_return']
-        sip_projection = sip_calc.calculate_sip_projections(
-            sip_amount=req.sip_amount,
-            portfolio_xirr=portfolio_xirr,
-            tenure_years=req.sip_tenure_years,
-            step_up_rate=req.sip_step_up_rate
-        )
-
-        allocation_summary = []
-        for fc, info in portfolio['selected_funds'].items():
-            allocation_summary.append({
-                "fund_code": fc,
-                "fund_name": info['name'],
-                "category": info['category'],
-                "allocation_percent": round(portfolio['allocations'][fc], 2),
-                "investment_amount": round(portfolio['fund_amounts'][fc], 2),
-                "expected_return_percent": round(info['performance'].get('total_return', 0), 2)
+        recommendations = []
+        for fund_code, fund_info in portfolio['selected_funds'].items():
+            perf = fund_info['performance']
+            recommendations.append({
+                "name": fund_info['name'],
+                "type": fund_info['category'],
+                "xirr": round(perf.get('total_return', 0), 2),
+                "bear": round(perf.get('bear_xirr', 0), 2),
+                "bull": round(perf.get('bull_xirr', 0), 2),
+                "explanation": "Recommended based on risk profile and past performance"
             })
 
-        return {
-            "analysis_period": {"start_date": req.start_date, "end_date": req.end_date},
-            "risk_profile": req.risk_profile,
-            "investment_amount": req.investment_amount,
-            "portfolio_allocation": allocation_summary,
-            "portfolio_metrics": portfolio['portfolio_metrics'],
-            "portfolio_valid": portfolio['validation']['valid'],
-            "sip_projection": sip_projection
-        }
+        return {"recommendations": recommendations}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Recommendation failed: {str(e)}")

@@ -1,3 +1,9 @@
 fastapi
 uvicorn
 pydantic
+pandas
+numpy
+matplotlib
+seaborn
+scipy
+mftool

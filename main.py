@@ -548,14 +548,13 @@ class SIPCalculator:
 # FASTAPI APP
 # =================
 
+from pydantic import BaseModel
+
 app = FastAPI(title="Mutual Fund Analysis API")
 
-from pydantic import BaseModel
-from typing import Optional
-
 class RecommendationRequest(BaseModel):
-    amount: int      # Investment amount
-    tenor: int       # Investment duration in years (or as your input expects)
+    amount: int
+    tenor: int
 
 origins = [
     "https://pateljigar38-svg.github.io",
@@ -595,10 +594,12 @@ async def recommend(req: RecommendationRequest):
         top_funds_by_category = {}
         for category, funds in results.items():
             filtered = {k: v for k, v in funds.items() if v['meets_criteria']['overall_return_ok']}
-            top = dict(sorted(filtered.items(), key=lambda x: x[1]['total_return'], reverse=True)[:3])
+            if filtered:
+                top = dict(sorted(filtered.items(), key=lambda x: x[1]['total_return'], reverse=True)[:3])
+            else:
+                top = dict(sorted(funds.items(), key=lambda x: x[1]['total_return'], reverse=True)[:3])
             top_funds_by_category[category] = top
 
-        # For example, use 'Moderate' portfolio always as in your JS expects moderate risk
         portfolio = constructor.construct_portfolio('Moderate', top_funds_by_category, investment_amount=req.amount)
 
         recommendations = []

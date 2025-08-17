@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+pydantic
+pandas
+numpy
+matplotlib
+seaborn
+scipy
+# mftool and requests are only needed locally for the fetch script, not for backend deployment using the JSON file
+python-multipart

@@ -49,7 +49,7 @@ class MutualFundSelector:
             'International': []
         }
         self.performance_requirements = {
-            'bear_market_min_xirr': 13.0,
+            'bear_market_min_xirr': 8.0,
             'bull_market_min_xirr': 18.0,
             'backtesting_accuracy': 95.0
         }
@@ -189,7 +189,7 @@ class BacktestEngine:
         return drawdown.min() * 100
     def _check_fund_criteria(self, bear_xirr, bull_xirr, annual_return):
         return {
-            'bear_market_ok': bear_xirr >= 13.0,
+            'bear_market_ok': bear_xirr >= 8.0,
             'bull_market_ok': bull_xirr >= 18.0,
             'overall_return_ok': annual_return >= 15.0
         }
